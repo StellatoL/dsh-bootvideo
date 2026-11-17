@@ -1,4 +1,4 @@
-# dsh-openvideo — bundle patch.
+# dsh-bootvideo — bundle patch.
 #
 # One row: the Host half that serves media/boot.* and injects the pre-JS curtain.
 # Its Client half (client.js) is picked up through the `dsh.client` manifest field,
@@ -8,8 +8,8 @@
 # add an override row in your own profile patch; a matching row id replaces the
 # whole `config` object.
 - insert:
-    - id: dsh-openvideo
-      name: dsh-openvideo
+    - id: dsh-bootvideo
+      name: dsh-bootvideo
       config:
         enabled: true
         playMode: always

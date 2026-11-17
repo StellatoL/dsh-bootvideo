@@ -1,8 +1,8 @@
-# dsh-openvideo
+# dsh-bootvideo
 
 一个 DeepSeek Harness（DSH）插件包（bundle）：页面加载时在 DSH Web GUI 上播放一段十秒的全屏电影感启动动画，随后淡出，把屏幕交还给工作区。片段、静帧海报（poster）和 JS 执行前的幕布（curtain）都随包发布，并由同一监听端口上的 Host 路由提供，因此播放过程不发起任何网络请求。
 
-版本 1.1.0 · [代码仓库](https://github.com/StellatoL/dsh-openvideo) · [English](README.md)
+版本 1.2.0 · [代码仓库](https://github.com/StellatoL/dsh-bootvideo) · [English](README.md)
 代码采用 MIT，视频素材不适用（见[许可](#许可)）。
 
 ![启动覆盖层：上下遮幅的画面、底部进度线和跳过控件](docs/preview.svg)
@@ -27,7 +27,7 @@
 
 这是一个插件包（bundle），由一个包体加一份 Loader 补丁（patch）组成，从本地目录安装：
 
-1. 克隆仓库：`git clone https://github.com/StellatoL/dsh-openvideo.git`
+1. 克隆仓库：`git clone https://github.com/StellatoL/dsh-bootvideo.git`
 2. 在 DSH 中打开 **Plugins**，选择 **Add plugin**，选中该目录。本地目录安装会以链接方式指向 checkout，而不是复制，因此 `git pull` 就能更新已安装的 bundle。
 3. 重新加载 DSH Web GUI 页面，动画会在这次加载时播放。
 
@@ -35,12 +35,12 @@ Host 端需要一台提供 `ctx.webServer` 的 Web 载体（carrier）——`dsh
 
 ## 设置
 
-所有设置都是可选的，位于 bundle 自带补丁插入的那行 Loader 行（Loader row，`id` 为 `dsh-openvideo`）的 `config` 中。bundle 提供的默认值如下：
+所有设置都是可选的，位于 bundle 自带补丁插入的那行 Loader 行（Loader row，`id` 为 `dsh-bootvideo`）的 `config` 中。bundle 提供的默认值如下：
 
 | 键 | 默认值 | 含义 |
 | --- | --- | --- |
 | `enabled` | `true` | 总开关 |
-| `playMode` | `always` | `always`，或 `oncePerSession`（每个浏览器会话一次，用 `sessionStorage` 中的 `dsh-openvideo:booted` 键记录） |
+| `playMode` | `always` | `always`，或 `oncePerSession`（每个浏览器会话一次，用 `sessionStorage` 中的 `dsh-bootvideo:booted` 键记录） |
 | `startMuted` | `true` | 以静音开始；仍然提供取消静音按钮 |
 | `skippable` | `true` | 允许点击或 `Esc` 提前结束 |
 | `curtain` | `true` | 把 JS 执行前的幕布注入 `index.html` |
@@ -49,8 +49,8 @@ Host 端需要一台提供 `ctx.webServer` 的 Web 载体（carrier）——`dsh
 
 ```yaml
 # <profile dir>/cordis.patch.yml
-- id: dsh-openvideo
-  name: dsh-openvideo
+- id: dsh-bootvideo
+  name: dsh-bootvideo
   config:
     enabled: true
     playMode: oncePerSession
@@ -69,11 +69,11 @@ Plugins 页面会显示这一行，也能启用或禁用它；具体取值保存
 
 ### Host 端 —— `index.js`
 
-`cordis.patch.yml` 插入的一行 Loader 行（Loader row，`id: dsh-openvideo`）。模块声明 `inject = ['webServer']`，因此只在拥有 `ctx.webServer` 的 Web 载体（carrier）上激活；其他环境保持不激活。
+`cordis.patch.yml` 插入的一行 Loader 行（Loader row，`id: dsh-bootvideo`）。模块声明 `inject = ['webServer']`，因此只在拥有 `ctx.webServer` 的 Web 载体（carrier）上激活；其他环境保持不激活。
 
-1. **媒体路由（route）。** `GET|HEAD /dsh-openvideo/media/` 只提供五个文件：`boot.mp4`、`boot.webm`、`poster.jpg`、`poster.webp`、`curtain.jpg`。它支持 `Range`（206 加 `Content-Range`）、`HEAD`、`ETag` + `If-None-Match`（304），对无法满足的 range 返回 416，对其他方法返回 405，对允许列表之外的一切返回 404。每个文件在内存中缓存，只有大小或修改时间变化时才重新读取。
-2. **设置路由（route）。** `GET /dsh-openvideo/config` 以 JSON 返回解析后的设置。客户端优先读取注入的全局变量，只有在没有任何行被应用时才请求这个路由，因此即使载体丢弃了注入行，动画依然能播放。
-3. **index 注入行。** 它向 `webserver/index-inject` 表追加行：一行 `global __DSH_OPENVIDEO__` 设置，以及幕布开启时的三行——`style`（内联 CSS，模糊帧以 data URL 内联）、body 位置的 `html`（幕布标记）和 head 位置的 `script`（幕布行为）。Web 响应会把这些行渲染进 `index.html`；桌面外壳则把同一张表应用到自己的文档。幕布早于任何客户端模块绘制，因此应用外壳不会闪现。当客户端条目不在 `window.__DSH_BOOT__`、插件被禁用，或 `oncePerSession` 模式下本次会话已播放过时，幕布会自行隐藏；否则它在覆盖层的就绪事件时抬起，并有 4 s 兜底。
+1. **媒体路由（route）。** `GET|HEAD /dsh-bootvideo/media/` 只提供五个文件：`boot.mp4`、`boot.webm`、`poster.jpg`、`poster.webp`、`curtain.jpg`。它支持 `Range`（206 加 `Content-Range`）、`HEAD`、`ETag` + `If-None-Match`（304），对无法满足的 range 返回 416，对其他方法返回 405，对允许列表之外的一切返回 404。每个文件在内存中缓存，只有大小或修改时间变化时才重新读取。
+2. **设置路由（route）。** `GET /dsh-bootvideo/config` 以 JSON 返回解析后的设置。客户端优先读取注入的全局变量，只有在没有任何行被应用时才请求这个路由，因此即使载体丢弃了注入行，动画依然能播放。
+3. **index 注入行。** 它向 `webserver/index-inject` 表追加行：一行 `global __DSH_BOOTVIDEO__` 设置，以及幕布开启时的三行——`style`（内联 CSS，模糊帧以 data URL 内联）、body 位置的 `html`（幕布标记）和 head 位置的 `script`（幕布行为）。Web 响应会把这些行渲染进 `index.html`；桌面外壳则把同一张表应用到自己的文档。幕布早于任何客户端模块绘制，因此应用外壳不会闪现。当客户端条目不在 `window.__DSH_BOOT__`、插件被禁用，或 `oncePerSession` 模式下本次会话已播放过时，幕布会自行隐藏；否则它在覆盖层的就绪事件时抬起，并有 4 s 兜底。
 
 ### 客户端 —— `client.js`
 

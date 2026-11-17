@@ -143,13 +143,13 @@ async function main () {
   // Regression guard: the Desktop window serves its own index and never runs
   // index transforms, so the curtain must not depend on tapIndex.
   check('no longer depends on tapIndex', taps.length === 0, `got ${taps.length} taps`)
-  check('registers a prefix media route', routes.some((r) => r.kind === 'prefix' && r.path === '/dsh-openvideo/media'))
-  check('registers an exact config route', routes.some((r) => r.kind === 'exact' && r.path === '/dsh-openvideo/config'))
+  check('registers a prefix media route', routes.some((r) => r.kind === 'prefix' && r.path === '/dsh-bootvideo/media'))
+  check('registers an exact config route', routes.some((r) => r.kind === 'exact' && r.path === '/dsh-bootvideo/config'))
   check('effects were created', effects.length >= 1, `got ${effects.length}`)
 
-  const media = routes.find((r) => r.path === '/dsh-openvideo/media').resource
-  const config = routes.find((r) => r.path === '/dsh-openvideo/config').resource
-  const base = 'http://placeholder/dsh-openvideo/media/'
+  const media = routes.find((r) => r.path === '/dsh-bootvideo/media').resource
+  const config = routes.find((r) => r.path === '/dsh-bootvideo/config').resource
+  const base = 'http://placeholder/dsh-bootvideo/media/'
 
   console.log('\nHost half — media resource')
   const expected = {
@@ -188,28 +188,28 @@ async function main () {
   check('matching If-None-Match -> 304', (await media(new Request(`${base}boot.mp4`, { headers: { 'if-none-match': etag } }))).status === 304)
 
   console.log('\nHost half — settings route')
-  const settingsResponse = await config(new Request('http://placeholder/dsh-openvideo/config'))
+  const settingsResponse = await config(new Request('http://placeholder/dsh-bootvideo/config'))
   check('config -> 200', settingsResponse.status === 200, String(settingsResponse.status))
   check('config is JSON', (settingsResponse.headers.get('content-type') || '').includes('application/json'))
   check('config is not cached', settingsResponse.headers.get('cache-control') === 'no-store')
   const served = await settingsResponse.json()
-  check('config carries the media base', served.mediaBase === '/dsh-openvideo/media/', served.mediaBase)
+  check('config carries the media base', served.mediaBase === '/dsh-bootvideo/media/', served.mediaBase)
   check('config carries the defaults', served.enabled === true && served.playMode === 'always' && served.skippable === true)
-  check('config names the ready event', served.readyEvent === 'dsh-openvideo:ready', served.readyEvent)
-  check('config POST is a 405', (await config(new Request('http://placeholder/dsh-openvideo/config', { method: 'POST' }))).status === 405)
+  check('config names the ready event', served.readyEvent === 'dsh-bootvideo:ready', served.readyEvent)
+  check('config POST is a 405', (await config(new Request('http://placeholder/dsh-bootvideo/config', { method: 'POST' }))).status === 405)
 
   console.log('\nHost half — injection rows')
   const table = []
   injections[0](table)
   check('pushes four rows', table.length === 4, `got ${table.length}`)
   const globalRow = rowOf(table, 'global')
-  check('first row is the settings global', table[0] === globalRow && globalRow.name === '__DSH_OPENVIDEO__', globalRow && globalRow.name)
+  check('first row is the settings global', table[0] === globalRow && globalRow.name === '__DSH_BOOTVIDEO__', globalRow && globalRow.name)
   check('global row matches the config route', JSON.stringify(globalRow.value) === JSON.stringify(served))
   check('has a style row', Boolean(rowOf(table, 'style')))
   check('style row inlines the curtain image', /data:image\/jpeg;base64,[A-Za-z0-9+/=]{200,}/u.test(rowOf(table, 'style').text))
   const htmlRow = rowOf(table, 'html')
   check('html row targets the body', htmlRow && htmlRow.placement === 'body', htmlRow && htmlRow.placement)
-  check('html row is the curtain markup', htmlRow && htmlRow.html.includes('id="dsh-openvideo-curtain"'))
+  check('html row is the curtain markup', htmlRow && htmlRow.html.includes('id="dsh-bootvideo-curtain"'))
   const scriptRow = rowOf(table, 'script')
   check('script row targets the head', scriptRow && scriptRow.placement === 'head', scriptRow && scriptRow.placement)
   try {
@@ -218,17 +218,17 @@ async function main () {
   } catch (error) {
     check('curtain script is valid JavaScript', false, error.message)
   }
-  check('curtain script lifts on the ready event', scriptRow.text.includes('"dsh-openvideo:ready"'))
+  check('curtain script lifts on the ready event', scriptRow.text.includes('"dsh-bootvideo:ready"'))
   check('curtain script checks the boot graph once parsed', scriptRow.text.includes('DOMContentLoaded'))
 
   console.log('\nHost half — rows applied to the shell document')
   const applied = applyRows(indexHtml, table)
   check('document keeps the shell root', applied.html.includes('<div id="root">'))
-  check('document gains the curtain', applied.html.includes('id="dsh-openvideo-curtain"'))
-  check('curtain lands inside the body', applied.html.indexOf('id="dsh-openvideo-curtain"') > applied.html.indexOf('<body'))
-  check('curtain styles land in the head', applied.html.indexOf('<style>#dsh-openvideo-curtain') < applied.html.indexOf('</head>'))
+  check('document gains the curtain', applied.html.includes('id="dsh-bootvideo-curtain"'))
+  check('curtain lands inside the body', applied.html.indexOf('id="dsh-bootvideo-curtain"') > applied.html.indexOf('<body'))
+  check('curtain styles land in the head', applied.html.indexOf('<style>#dsh-bootvideo-curtain') < applied.html.indexOf('</head>'))
   check('inlined image survives the round trip', applied.html.includes('data:image/jpeg;base64,'))
-  check('settings global is set on window', applied.window.__DSH_OPENVIDEO__ && applied.window.__DSH_OPENVIDEO__.enabled === true)
+  check('settings global is set on window', applied.window.__DSH_BOOTVIDEO__ && applied.window.__DSH_BOOTVIDEO__.enabled === true)
   check('applied document still parses as one head/body pair',
     (applied.html.match(/<body/gu) || []).length === 1 && (applied.html.match(/<\/head>/gu) || []).length === 1)
 
@@ -252,10 +252,10 @@ async function main () {
 
   console.log('\nClient half — bundle shape')
   check('registers through the module loader', client.includes('window.__ModuleLoader__.load({'))
-  check('declares the package id', /id:\s*'dsh-openvideo'/.test(client))
+  check('declares the package id', /id:\s*'dsh-bootvideo'/.test(client))
   check('registers into shell.overlay', client.includes("ctx.slots.inject('shell.overlay'"))
   check('opts back into pointer events', /\.dsh-ov\{[^}]*pointer-events:auto/.test(client))
-  check('curtain never blocks the overlay', /#dsh-openvideo-curtain\{[^}]*pointer-events:none/.test(hostSource))
+  check('curtain never blocks the overlay', /#dsh-bootvideo-curtain\{[^}]*pointer-events:none/.test(hostSource))
   check('is a modal surface for assistive tech', client.includes("'aria-modal': 'true'") && client.includes('role: \'dialog\''))
   check('takes focus while it owns the frame', client.includes('rootRef.current') && client.includes('.focus({ preventScroll: true })'))
   check('does not start playback before the first frame', /const onLoaded = \(\) => \{[\s\S]{0,260}play\(\)/.test(client))
@@ -265,7 +265,7 @@ async function main () {
   check('never writes DOM outside the tree', !client.includes('document.body.appendChild'))
 
   console.log('\nClient half — carrier independence')
-  check('falls back to the settings route', client.includes("'/dsh-openvideo/config'"))
+  check('falls back to the settings route', client.includes("'/dsh-bootvideo/config'"))
   check('detects the shell origin', client.includes('function isShellOrigin'))
   check('prefetches media as a blob in the shell', client.includes('URL.createObjectURL'))
   check('renders sources from resolved settings', client.includes('(sources || []).map'))

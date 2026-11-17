@@ -1,5 +1,5 @@
 /**
- * dsh-openvideo — Client half.
+ * dsh-bootvideo — Client half.
  *
  * A full-frame boot sequence rendered into `shell.overlay`:
  *
@@ -16,7 +16,7 @@
  */
 
 window.__ModuleLoader__.load({
-  id: 'dsh-openvideo',
+  id: 'dsh-bootvideo',
   factory (require) {
     const React = require('react')
     const h = React.createElement
@@ -43,21 +43,21 @@ window.__ModuleLoader__.load({
       if (!raw || typeof raw !== 'object') return null
       const mediaBase = typeof raw.mediaBase === 'string' && raw.mediaBase
         ? raw.mediaBase
-        : '/dsh-openvideo/media/'
+        : '/dsh-bootvideo/media/'
       return {
         enabled: raw.enabled !== false,
         playMode: raw.playMode === 'oncePerSession' ? 'oncePerSession' : 'always',
         startMuted: raw.startMuted !== false,
         skippable: raw.skippable !== false,
         mediaBase,
-        readyEvent: typeof raw.readyEvent === 'string' ? raw.readyEvent : 'dsh-openvideo:ready',
-        storageKey: typeof raw.storageKey === 'string' ? raw.storageKey : 'dsh-openvideo:booted',
+        readyEvent: typeof raw.readyEvent === 'string' ? raw.readyEvent : 'dsh-bootvideo:ready',
+        storageKey: typeof raw.storageKey === 'string' ? raw.storageKey : 'dsh-bootvideo:booted',
       }
     }
 
     /** Settings the shell injected as an index row, when this carrier applies them. */
     function readSettings () {
-      return normalizeSettings(window.__DSH_OPENVIDEO__)
+      return normalizeSettings(window.__DSH_BOOTVIDEO__)
     }
 
     /**
@@ -68,7 +68,7 @@ window.__ModuleLoader__.load({
     async function fetchSettings () {
       if (typeof fetch !== 'function') return null
       try {
-        const response = await fetch('/dsh-openvideo/config', { headers: { accept: 'application/json' } })
+        const response = await fetch('/dsh-bootvideo/config', { headers: { accept: 'application/json' } })
         if (!response.ok) return null
         return normalizeSettings(await response.json())
       } catch {
@@ -544,7 +544,7 @@ window.__ModuleLoader__.load({
           bound = { settings, strings: STRINGS[language] || STRINGS.en, sources }
           ctx.slots.inject('shell.overlay', () => ctx.slots.register({
             name: 'shell.overlay',
-            id: 'dsh-openvideo',
+            id: 'dsh-bootvideo',
             order: 1000,
           }, BootBridge))
         }

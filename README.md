@@ -1,4 +1,4 @@
-# dsh-openvideo
+# dsh-bootvideo
 
 A DeepSeek Harness (DSH) plugin bundle that plays a ten-second, full-screen cinematic
 boot animation over the DSH Web GUI when the page loads, then fades out and hands the
@@ -6,7 +6,7 @@ screen to the workspace. The clip, its poster frames and the pre-JS curtain ship
 the package and are served by a Host route on the same listener, so playback makes no
 network requests.
 
-Version 1.1.0 · [Repository](https://github.com/StellatoL/dsh-openvideo) · [简体中文](README.zh-CN.md) · MIT for the
+Version 1.2.0 · [Repository](https://github.com/StellatoL/dsh-bootvideo) · [简体中文](README.zh-CN.md) · MIT for the
 code, not for the video (see [Licence](#licence)).
 
 ![The boot overlay: letterboxed footage with a progress line and a skip control along the bottom bar](docs/preview.svg)
@@ -38,7 +38,7 @@ page load  ->  curtain: blurred still + brand line + sweeping bar   (inline, pre
 This is a plugin bundle (a package plus a Loader patch), installed from a local
 directory:
 
-1. Clone the repository: `git clone https://github.com/StellatoL/dsh-openvideo.git`
+1. Clone the repository: `git clone https://github.com/StellatoL/dsh-bootvideo.git`
 2. In DSH, open **Plugins**, choose **Add plugin**, and select that directory. A local
    directory install links the checkout rather than copying it, so `git pull` updates
    the installed bundle.
@@ -51,13 +51,13 @@ plays.
 ## Settings
 
 All settings are optional keys in the `config` of the single Loader row (`id:
-dsh-openvideo`) that the bundle's own patch inserts. The bundle supplies these
+dsh-bootvideo`) that the bundle's own patch inserts. The bundle supplies these
 defaults:
 
 | key | default | meaning |
 | --- | --- | --- |
 | `enabled` | `true` | master switch |
-| `playMode` | `always` | `always`, or `oncePerSession` (once per browser session, tracked with the `dsh-openvideo:booted` key in `sessionStorage`) |
+| `playMode` | `always` | `always`, or `oncePerSession` (once per browser session, tracked with the `dsh-bootvideo:booted` key in `sessionStorage`) |
 | `startMuted` | `true` | start silent; the unmute button is still offered |
 | `skippable` | `true` | allow click and `Esc` to end the sequence early |
 | `curtain` | `true` | inject the pre-JS curtain into `index.html` |
@@ -69,8 +69,8 @@ so restate every key you want to keep:
 
 ```yaml
 # <profile dir>/cordis.patch.yml
-- id: dsh-openvideo
-  name: dsh-openvideo
+- id: dsh-bootvideo
+  name: dsh-bootvideo
   config:
     enabled: true
     playMode: oncePerSession
@@ -97,21 +97,21 @@ Client half can fall back to a settings route when no rows were applied.
 
 ### Host half — `index.js`
 
-One Loader row inserted by `cordis.patch.yml` (`id: dsh-openvideo`). The module declares
+One Loader row inserted by `cordis.patch.yml` (`id: dsh-bootvideo`). The module declares
 `inject = ['webServer']`, so it only activates on a Web carrier that has
 `ctx.webServer`; everywhere else it stays inactive.
 
-1. **Media route.** `GET|HEAD /dsh-openvideo/media/` serves exactly five files:
+1. **Media route.** `GET|HEAD /dsh-bootvideo/media/` serves exactly five files:
    `boot.mp4`, `boot.webm`, `poster.jpg`, `poster.webp`, `curtain.jpg`. It supports
    `Range` (206 plus `Content-Range`), `HEAD`, `ETag` + `If-None-Match` (304), answers
    416 for an unsatisfiable range, 405 for other methods, and 404 for anything outside
    the allow-list. Each file is cached in memory and re-read only when its size or
    modification time changes.
-2. **Settings route.** `GET /dsh-openvideo/config` returns the resolved settings as JSON.
+2. **Settings route.** `GET /dsh-bootvideo/config` returns the resolved settings as JSON.
    The Client half reads the injected global first and asks this route only when no rows
    were applied, so the sequence still runs on a carrier that drops them.
 3. **Index rows.** It appends rows to the `webserver/index-inject` table: a
-   `global __DSH_OPENVIDEO__` settings row and, when the curtain is enabled, a `style`
+   `global __DSH_BOOTVIDEO__` settings row and, when the curtain is enabled, a `style`
    row (inline CSS with the blurred frame as a data URL), a body `html` row (the curtain
    markup) and a head `script` row (its behaviour). A Web response renders those rows
    into `index.html`; the Desktop shell applies the same table to its own document. The

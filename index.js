@@ -1,5 +1,5 @@
 /**
- * dsh-openvideo — Host half.
+ * dsh-bootvideo — Host half.
  *
  * Three carrier-facing pieces, all on services the Web surface provides:
  *
@@ -8,7 +8,7 @@
  *    this one supports `Range` (the browser seeks with it), `HEAD`, and
  *    conditional `If-None-Match` revalidation.
  *
- * 2. **Settings route.** `GET /dsh-openvideo/config` returns the resolved
+ * 2. **Settings route.** `GET /dsh-bootvideo/config` returns the resolved
  *    settings. The Client half reads an injected global when one is present and
  *    falls back to this route otherwise, so the boot sequence still runs on a
  *    carrier that does not apply index injections.
@@ -33,15 +33,15 @@ import path from 'node:path'
 /**
  * Browser-facing base of the media route. The route itself is registered
  * without the trailing slash: a `prefix` route matches `p` and `p/<anything>`,
- * so registering `/dsh-openvideo/media/` would only match `.../media//…`.
+ * so registering `/dsh-bootvideo/media/` would only match `.../media//…`.
  */
-const MEDIA_PATH = '/dsh-openvideo/media/'
+const MEDIA_PATH = '/dsh-bootvideo/media/'
 
 /** Route path handed to the Web carrier (no trailing slash, see above). */
-const MEDIA_ROUTE = '/dsh-openvideo/media'
+const MEDIA_ROUTE = '/dsh-bootvideo/media'
 
 /** Settings route the Client half falls back to. */
-const CONFIG_ROUTE = '/dsh-openvideo/config'
+const CONFIG_ROUTE = '/dsh-bootvideo/config'
 
 /** Media this route is allowed to answer. Anything else is a 404, not a file read. */
 const ALLOWED_FILES = new Set(['boot.mp4', 'boot.webm', 'poster.jpg', 'poster.webp', 'curtain.jpg'])
@@ -55,13 +55,13 @@ const MEDIA_TYPES = {
 }
 
 /** Window event the client overlay dispatches once its first frame is painted. */
-const READY_EVENT = 'dsh-openvideo:ready'
+const READY_EVENT = 'dsh-bootvideo:ready'
 
 /** sessionStorage key used by `playMode: oncePerSession`. */
-const STORAGE_KEY = 'dsh-openvideo:booted'
+const STORAGE_KEY = 'dsh-bootvideo:booted'
 
 /** Global the client half reads its settings from, when injections are applied. */
-const CONFIG_GLOBAL = '__DSH_OPENVIDEO__'
+const CONFIG_GLOBAL = '__DSH_BOOTVIDEO__'
 
 /** The Web carrier is required; everywhere else this bundle stays inactive. */
 export const inject = ['webServer']
@@ -276,7 +276,7 @@ function buildInjectionRows ({ settings, mediaBase, curtainEnabled, curtainDataU
 }
 
 /** The curtain markup: one fixed layer, image inlined as a data URL by the style row. */
-const CURTAIN_MARKUP = '<div id="dsh-openvideo-curtain" role="presentation">'
+const CURTAIN_MARKUP = '<div id="dsh-bootvideo-curtain" role="presentation">'
   + '<div class="dsh-ovc-frame"></div>'
   + '<div class="dsh-ovc-glow"></div>'
   + '<div class="dsh-ovc-foot">'
@@ -301,7 +301,7 @@ if(cfg.enabled===false||(${JSON.stringify(playMode)}==='oncePerSession'&&seen)){
 var done=false;
 function lift(){
   if(done)return;done=true;
-  var el=document.getElementById('dsh-openvideo-curtain');
+  var el=document.getElementById('dsh-bootvideo-curtain');
   if(!el){root.classList.add('dsh-ovc-skip');return}
   el.classList.add('dsh-ovc-lift');
   setTimeout(function(){if(el.parentNode)el.parentNode.removeChild(el)},420);
@@ -309,7 +309,7 @@ function lift(){
 function checkEntry(){
   var graph=window.__DSH_BOOT__;
   if(!graph||!graph.entries)return;
-  var present=graph.entries.some(function(e){return e&&e.id==='dsh-openvideo'});
+  var present=graph.entries.some(function(e){return e&&e.id==='dsh-bootvideo'});
   if(!present){done=true;root.classList.add('dsh-ovc-skip');}
 }
 checkEntry();
@@ -325,11 +325,11 @@ setTimeout(lift,4000);
  * dominant tone so the handoff to the video is invisible.
  */
 const CURTAIN_CSS = `
-#dsh-openvideo-curtain{position:fixed;inset:0;z-index:2147483000;overflow:hidden;background:#0b090c;
+#dsh-bootvideo-curtain{position:fixed;inset:0;z-index:2147483000;overflow:hidden;background:#0b090c;
   opacity:1;transition:opacity .38s cubic-bezier(.22,1,.36,1);contain:strict;
   pointer-events:none;cursor:default;-webkit-user-select:none;user-select:none}
-html.dsh-ovc-skip #dsh-openvideo-curtain{display:none!important}
-#dsh-openvideo-curtain.dsh-ovc-lift{opacity:0}
+html.dsh-ovc-skip #dsh-bootvideo-curtain{display:none!important}
+#dsh-bootvideo-curtain.dsh-ovc-lift{opacity:0}
 .dsh-ovc-frame{position:absolute;inset:-6%;background:#0b090c url("__CURTAIN_IMAGE__") center/cover no-repeat;
   filter:blur(18px) saturate(1.15) brightness(1.1);transform:scale(1.06);
   animation:dsh-ovc-drift 14s ease-out both}

@@ -3,6 +3,19 @@
 All notable changes to this bundle are recorded here. Versions follow SemVer and
 describe the bundle, not the DSH release it was built against.
 
+## 1.2.0
+
+### Changed
+
+- **Renamed from `dsh-openvideo` to `dsh-bootvideo`**, and the repository moved with it
+  (`github.com/StellatoL/dsh-bootvideo`). The repository name now equals the package
+  name, which is also the Loader row id, the browser module id and the route prefix.
+  Every public identifier follows the rename: the routes are now
+  `/dsh-bootvideo/media/` and `/dsh-bootvideo/config`, the injected global is
+  `__DSH_BOOTVIDEO__`, and the session marker is `dsh-bootvideo:booted`.
+- Upgrading from 1.1.0 needs the old bundle removed first: its row id and routes are
+  the old names, so the two identities do not overlap.
+
 ## 1.1.0
 
 ### Fixed
