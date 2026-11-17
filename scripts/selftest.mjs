@@ -170,16 +170,21 @@ async function main () {
 
   console.log('\nHost half — index injection')
   const injected = taps[0](indexHtml)
+  // Whatever the shipped document calls its module entry, the injection must
+  // not disturb it. Derive the name from the input instead of hardcoding one.
+  const appScript = indexHtml.match(/<script[^>]*\ssrc="([^"]+)"/u)?.[1]
+  const shellRoot = /<div id="root"/u.test(indexHtml)
   check('marks the document', injected.includes('dsh-openvideo'))
   check('injects the settings global', injected.includes('window.__DSH_OPENVIDEO__='))
   check('injects the curtain div', injected.includes('id="dsh-openvideo-curtain"'))
   check('injects the curtain style', injected.includes('data-dsh-openvideo="curtain"'))
-  check('keeps the shell root', injected.includes('<div id="root"></div>'))
-  check('keeps the app script', injected.includes('./assets/index-abc.js'))
+  check('inlines the curtain image as base64', /data:image\/jpeg;base64,[A-Za-z0-9+/=]{200,}/u.test(injected))
+  check('keeps the shell root', !shellRoot || injected.includes('<div id="root"'))
+  check('keeps the app entry script', !appScript || injected.includes(appScript), appScript)
   check('is idempotent', taps[0](injected) === injected, 'second pass changed the document')
   check('curtain is the first body child',
     injected.indexOf('id="dsh-openvideo-curtain"') > injected.indexOf('<body')
-    && injected.indexOf('id="dsh-openvideo-curtain"') < injected.indexOf('<div id="root">'))
+    && (!shellRoot || injected.indexOf('id="dsh-openvideo-curtain"') < injected.indexOf('<div id="root"')))
 
   const settings = JSON.parse(injected.match(/window\.__DSH_OPENVIDEO__=(\{.*?\})<\/script>/su)[1])
   check('settings carry the media base', settings.mediaBase === '/dsh-openvideo/media/', settings.mediaBase)
