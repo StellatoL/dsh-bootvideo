@@ -43,6 +43,39 @@ function check (label, condition, detail) {
   }
 }
 
+/** Slice out a template-literal body that starts after `marker`. */
+function templateOf (source, marker) {
+  const at = source.indexOf(marker)
+  if (at < 0) return null
+  const from = source.indexOf('`', at) + 1
+  const to = source.indexOf('`', from)
+  if (from <= 0 || to < 0) return null
+  return source.slice(from, to)
+}
+
+/** Final and minimum nesting depth of one bracket pair, ignoring quoted runs. */
+function balance (text, open, close) {
+  let depth = 0
+  let min = 0
+  let quote = null
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i]
+    if (quote) {
+      if (char === quote && text[i - 1] !== '\\') quote = null
+      continue
+    }
+    if (char === '"' || char === "'") {
+      quote = char
+    } else if (char === open) {
+      depth += 1
+    } else if (char === close) {
+      depth -= 1
+      if (depth < min) min = depth
+    }
+  }
+  return { final: depth, min }
+}
+
 function fakeContext (config) {
   const routes = []
   const taps = []
@@ -191,6 +224,26 @@ async function main () {
   check('cleans up its timers', client.includes('timersRef'))
   check('never writes DOM outside the tree', !client.includes('document.body.appendChild'))
   check('sends the ready event for the curtain', client.includes('dispatchEvent(new CustomEvent'))
+
+  console.log('\nStylesheets — structural sanity')
+  const hostSource = await readFile(path.join(root, 'index.js'), 'utf8')
+  const stylesheets = [
+    ['client.js overlay', templateOf(client, 'const CSS = `')],
+    ['index.js curtain', templateOf(hostSource, 'const CURTAIN_CSS = `')],
+  ]
+  for (const [label, css] of stylesheets) {
+    check(`${label} stylesheet found`, typeof css === 'string' && css.length > 200, `${css ? css.length : 0} chars`)
+    if (!css) continue
+    const braces = balance(css, '{', '}')
+    const parens = balance(css, '(', ')')
+    check(`${label} braces balance`, braces.final === 0, `final depth ${braces.final}`)
+    check(`${label} braces never underflow`, braces.min >= 0, `min depth ${braces.min}`)
+    check(`${label} parens balance`, parens.final === 0, `final depth ${parens.final}`)
+    check(`${label} has no stray style close tag`, !css.includes('</style'))
+    check(`${label} has no empty declaration`, !css.includes(';;'))
+  }
+  const posterWired = /className: 'dsh-ov-media'[\s\S]{0,400}className: 'dsh-ov-poster'/.test(client)
+  check('poster and video share one animated wrapper', posterWired)
 
   console.log(`\n${checks - failures}/${checks} checks passed`)
   if (failures > 0) {

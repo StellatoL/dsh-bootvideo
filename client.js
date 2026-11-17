@@ -92,15 +92,18 @@ window.__ModuleLoader__.load({
   100%{opacity:0;filter:blur(9px) saturate(1.1);transform:scale(1.04)}}
 
 .dsh-ov-stage{position:absolute;inset:0;overflow:hidden;background:#0b090c}
-.dsh-ov-media{position:absolute;inset:-2%;background-position:center;background-size:cover;
-  transform:translate3d(0,0,0) scale(1.035);will-change:transform;
+.dsh-ov-stage{position:absolute;inset:0;overflow:hidden;background:#0b090c}
+/* One animated wrapper holds the poster AND the video, so the push-in and the
+   colour grade stay identical across the crossfade instead of drifting apart. */
+.dsh-ov-media{position:absolute;inset:-2%;transform:translate3d(0,0,0) scale(1.035);
+  will-change:transform;filter:saturate(1.07) contrast(1.06) brightness(1.16);
   animation:dsh-ov-push var(--dsh-ov-push,13s) linear both}
 @keyframes dsh-ov-push{
   from{transform:translate3d(0,0,0) scale(1.035)}
   to{transform:translate3d(-.7%,-.35%,0) scale(1.085)}}
+.dsh-ov-poster{position:absolute;inset:0;background-position:center;background-size:cover}
 .dsh-ov-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;
-  opacity:0;transition:opacity .6s ease-out;
-  filter:saturate(1.07) contrast(1.06) brightness(1.16)}
+  opacity:0;transition:opacity .62s ease-out}
 
 .dsh-ov-vignette{position:absolute;inset:0;pointer-events:none;
   background:
@@ -231,9 +234,11 @@ window.__ModuleLoader__.load({
         return () => cancelAnimationFrame(raf)
       }, [settings.storageKey])
 
-      // Media lifecycle.
+      // Media lifecycle. Set up exactly once: the callbacks below are stable, so
+      // a phase change must not re-run setup (a second play() on a finished
+      // element can restart it during the fade-out).
       useEffect(() => {
-        if (phase === 'gone') return undefined
+        if (finishedRef.current) return undefined
         if (reducedMotion) {
           const id = later(finish, 1400)
           return () => clearTimeout(id)
@@ -308,7 +313,7 @@ window.__ModuleLoader__.load({
           video.removeEventListener('error', onError)
           document.removeEventListener('visibilitychange', onVisibility)
         }
-      }, [finish, later, phase, settings.readyEvent])
+      }, [finish, later, settings.readyEvent])
 
       // Progress line, driven outside React so it never re-renders.
       useEffect(() => {
@@ -411,23 +416,25 @@ window.__ModuleLoader__.load({
       },
       h('style', { key: 'style' }, CSS),
       h('div', { className: 'dsh-ov-stage', key: 'stage' },
-        h('div', {
-          className: 'dsh-ov-media',
-          style: { backgroundImage: `url("${base}poster.webp")` },
-        }),
-        h('video', {
-          ref: videoRef,
-          className: 'dsh-ov-video',
-          style: { opacity: painted && !failed ? 1 : 0 },
-          poster: `${base}poster.jpg`,
-          preload: reducedMotion ? 'none' : 'auto',
-          playsInline: true,
-          muted: muted,
-          'aria-hidden': true,
-          tabIndex: -1,
-        },
-        h('source', { key: 'webm', src: `${base}boot.webm`, type: 'video/webm' }),
-        h('source', { key: 'mp4', src: `${base}boot.mp4`, type: 'video/mp4' })),
+        h('div', { className: 'dsh-ov-media' },
+          h('div', {
+            className: 'dsh-ov-poster',
+            // webp first, jpg layered underneath as a decode fallback
+            style: { backgroundImage: `url("${base}poster.webp"), url("${base}poster.jpg")` },
+          }),
+          h('video', {
+            ref: videoRef,
+            className: 'dsh-ov-video',
+            style: { opacity: painted && !failed ? 1 : 0 },
+            poster: `${base}poster.jpg`,
+            preload: reducedMotion ? 'none' : 'auto',
+            playsInline: true,
+            muted: muted,
+            'aria-hidden': true,
+            tabIndex: -1,
+          },
+          h('source', { key: 'webm', src: `${base}boot.webm`, type: 'video/webm' }),
+          h('source', { key: 'mp4', src: `${base}boot.mp4`, type: 'video/mp4' }))),
         h('div', { className: 'dsh-ov-vignette', key: 'vignette' }),
         h('div', { className: 'dsh-ov-grain', key: 'grain' })),
       h('div', { className: 'dsh-ov-bar dsh-ov-bar--top', key: 'bar-top' }),
