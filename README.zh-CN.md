@@ -94,7 +94,8 @@ manifest 的 `dsh.client` 字段（`platform: web`、`immediately: true`）告�
 | `docs/` | `DETAIL.md`、`DETAIL.zh.md`、`preview.svg`、`preview.zh.svg`、`media.json` |
 | `media/` | 五个媒体文件，以及 `README.md`（截取、版权、重新生成） |
 | `scripts/build-media.mjs` | 媒体编码脚本 |
-| `scripts/selftest.mjs` | 不需要 DSH 进程即可驱动 Host 端与注入脚本的自检（`node scripts/selftest.mjs`，73 项检查） |
+| `scripts/selftest.mjs` | 不需要 DSH 进程即可驱动 Host 端与注入脚本的自检（`node scripts/selftest.mjs`，87 项检查） |
+| `test/fixtures/index.html` | 自检所用的真实 Web 外壳文档副本 |
 | `README.md` | 本文件；`README.zh-CN.md` 是它的中文翻译 |
 | `LICENSE` | 代码采用 MIT；`CHANGELOG.md` 记录已发布的变更 |
 

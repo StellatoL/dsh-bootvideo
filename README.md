@@ -142,7 +142,8 @@ screen.
 | `docs/` | `DETAIL.md`, `DETAIL.zh.md`, `preview.svg`, `preview.zh.svg`, `media.json` |
 | `media/` | the five assets plus `README.md` (trim, rights, regeneration) |
 | `scripts/build-media.mjs` | the media encoder |
-| `scripts/selftest.mjs` | drives the Host half and the injected bundle with no DSH process (`node scripts/selftest.mjs`, 73 checks) |
+| `scripts/selftest.mjs` | drives the Host half and the injected bundle with no DSH process (`node scripts/selftest.mjs`, 87 checks) |
+| `test/fixtures/index.html` | exact copy of the shipped Web shell document the injection is tested against |
 | `README.md` | this file; `README.zh-CN.md` is its Chinese translation |
 | `LICENSE` | MIT for the code; `CHANGELOG.md` records released changes |
 
