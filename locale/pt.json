@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Vídeo de inicialização",
+    "description": "Reproduz uma animação de inicialização em tela cheia ao abrir a interface web e depois faz a transição para o espaço de trabalho. O clipe e as imagens de capa acompanham o pacote e são servidos pelo Host, sem nenhuma requisição de rede. Uma cortina injetada no index.html cobre a interface antes de qualquer módulo carregar, então a animação nunca começa com um piscar da interface; a camada superior assume no primeiro quadro desenhado e retira a cortina. Pule com clique ou Esc e alterne o som pelo botão no canto. Na configuração do plugin é possível desativar ou limitar a uma vez por sessão do navegador."
+  }
+}

@@ -1,0 +1,19 @@
+# OS and editor noise
+.DS_Store
+Thumbs.db
+*.swp
+
+# Node
+node_modules/
+npm-debug.log*
+pnpm-debug.log*
+*.tgz
+
+# Work space for the media pipeline
+.tmp/
+build/
+dist/
+
+# Local media source — the encoded files in media/ are tracked, the master is not
+*.mov
+!media/*.mp4

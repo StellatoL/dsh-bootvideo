@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Vidéo de démarrage",
+    "description": "Joue une animation de démarrage plein écran au lancement de l'interface web, puis se fond dans l'espace de travail. Le clip et ses images d'aperçu sont fournis avec l'extension et servis par l'hôte : rien n'est téléchargé depuis le réseau. Un rideau injecté dans index.html couvre l'interface avant le chargement du moindre module, si bien que l'animation ne commence jamais par un clignotement de l'interface ; la couche prend le relais dès sa première image et lève le rideau. Clic ou Échap pour passer, bouton dans le coin pour le son. La configuration de l'extension permet de la désactiver ou de la limiter à une fois par session de navigateur."
+  }
+}

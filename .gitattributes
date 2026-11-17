@@ -1,0 +1,13 @@
+# Keep the repository content LF regardless of the checkout platform.
+* text=auto eol=lf
+
+# Media is binary: never normalize line endings inside it.
+*.mp4 binary
+*.webm binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.png binary
+
+# Generated-but-committed data files
+docs/media.json text eol=lf

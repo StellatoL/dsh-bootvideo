@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Startvideo",
+    "description": "Spielt beim Start der Web-Oberfläche eine bildschirmfüllende Startanimation ab und blendet danach in den Arbeitsbereich über. Clip und Vorschaubilder liegen im Bundle und werden vom Host ausgeliefert; es werden keine Netzwerkdaten geladen. Ein in index.html eingefügter Vorhang verdeckt die Oberfläche, bevor Module laden – die Animation beginnt also nie mit einem kurzen Aufblitzen der Oberfläche. Sobald das Overlay sein erstes Bild gezeichnet hat, übernimmt es und hebt den Vorhang. Überspringen per Klick oder Esc, Ton über die Schaltfläche in der Ecke umschaltbar. In der Plugin-Konfiguration lässt sich die Animation abschalten oder auf einmal pro Browsersitzung begrenzen."
+  }
+}

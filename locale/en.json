@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Boot video",
+    "description": "Plays a full-screen boot animation over the Web GUI when the page starts, then fades into the workspace. The clip and its poster frames ship with the bundle and are served from the Host, so nothing is fetched from the network. A curtain that is injected into index.html covers the app shell before any module loads, so the animation never starts with a flash of the UI; the overlay takes over on its first painted frame and lifts the curtain. Skip with click or Esc, toggle the sound in the corner, and the sequence ends by itself when the clip does. Turn it off, or make it play once per browser session instead of on every reload, in the plugin configuration.",
+    "detail": "docs/DETAIL.md"
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "source": "source.mp4",
+  "trim": {
+    "start": 20,
+    "duration": 10,
+    "frames": 240,
+    "fps": 24,
+    "posterAt": 20.5
+  },
+  "files": {
+    "media/boot.mp4": {
+      "bytes": 1253025,
+      "sha256": "8cbc0877f00a990caed305429893c28cbdbc0ec490d33009587cd3546508d390",
+      "kind": "video",
+      "container": "mp4",
+      "codec": "h264",
+      "profile": "Main",
+      "width": 1280,
+      "height": 720,
+      "pixFmt": "yuv420p",
+      "frames": 240,
+      "fps": "24/1",
+      "durationSeconds": 10,
+      "bitrateKbps": 1002,
+      "audio": {
+        "codec": "aac",
+        "sampleRate": 44100,
+        "channels": 2
+      }
+    },
+    "media/boot.webm": {
+      "bytes": 986367,
+      "sha256": "8fa8da8b31ec6043c0ba39e9c923f6e80bf185ca42ebcef597f4be7a3d10fd82",
+      "kind": "video",
+      "container": "webm",
+      "codec": "vp9",
+      "profile": "Profile 0",
+      "width": 1280,
+      "height": 720,
+      "pixFmt": "yuv420p",
+      "frames": 240,
+      "fps": "24/1",
+      "durationSeconds": 10,
+      "bitrateKbps": 789,
+      "audio": {
+        "codec": "opus",
+        "sampleRate": 48000,
+        "channels": 2
+      }
+    },
+    "media/poster.jpg": {
+      "bytes": 61629,
+      "sha256": "a23bc0cd54edf91326d1892ca661692f1156f27a3a46e0f740591d0b0b531adc",
+      "kind": "image",
+      "codec": "mjpeg",
+      "width": 1280,
+      "height": 720,
+      "sourceTimestampSeconds": 20.5
+    },
+    "media/poster.webp": {
+      "bytes": 35740,
+      "sha256": "615ec6b0b047eb8d30f167434c462c3aa26b6d2ce3d97d1f0731ffffd3d90c23",
+      "kind": "image",
+      "codec": "webp",
+      "width": 1280,
+      "height": 720,
+      "sourceTimestampSeconds": 20.5
+    },
+    "media/curtain.jpg": {
+      "bytes": 350,
+      "sha256": "95593599045ae24d2ea8eab29e76e373d5d65217a2632f0d5adad43421d2d57d",
+      "kind": "image",
+      "codec": "mjpeg",
+      "width": 48,
+      "height": 28,
+      "sourceTimestampSeconds": 20.5
+    }
+  },
+  "payloadBytes": 2337111,
+  "dominantColor": "#21191c",
+  "audio": {
+    "present": true,
+    "loudnessLufs": -11.8
+  },
+  "notes": "No fades are baked in. media/curtain.jpg is the inline base64 first-paint placeholder."
+}

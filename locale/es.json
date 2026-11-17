@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Vídeo de arranque",
+    "description": "Reproduce una animación de arranque a pantalla completa al iniciar la interfaz web y después se funde con el espacio de trabajo. El clip y sus imágenes de portada se incluyen en el paquete y los sirve el Host, así que no se descarga nada de la red. Una cortina inyectada en index.html cubre la interfaz antes de que cargue ningún módulo, de modo que la animación nunca empieza con un parpadeo de la interfaz; la capa superior toma el relevo en su primer fotograma y retira la cortina. Se puede omitir con clic o Esc, y el botón de la esquina activa o desactiva el sonido. En la configuración del plugin se puede desactivar o limitar a una vez por sesión del navegador."
+  }
+}

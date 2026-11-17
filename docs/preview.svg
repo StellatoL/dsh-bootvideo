@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="300" viewBox="0 0 640 300">
+  <defs>
+    <linearGradient id="ov-frame" x1="0" y1="0" x2="0.7" y2="1">
+      <stop offset="0" stop-color="#241a20"/>
+      <stop offset="0.45" stop-color="#171216"/>
+      <stop offset="1" stop-color="#0e0b0e"/>
+    </linearGradient>
+    <radialGradient id="ov-glow" cx="0.52" cy="0.44" r="0.62">
+      <stop offset="0" stop-color="#e8ccd4" stop-opacity="0.30"/>
+      <stop offset="0.45" stop-color="#a87f8c" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#0e0b0e" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="ov-vignette" cx="0.5" cy="0.45" r="0.78">
+      <stop offset="0.42" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.62"/>
+    </radialGradient>
+    <linearGradient id="ov-sheen" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.10"/>
+      <stop offset="0.45" stop-color="#ffffff" stop-opacity="0.42"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.86"/>
+    </linearGradient>
+    <linearGradient id="ov-haze" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="ov-screen">
+      <rect x="0" y="26" width="640" height="248" rx="0"/>
+    </clipPath>
+  </defs>
+
+  <rect width="640" height="300" fill="#070608"/>
+
+  <g clip-path="url(#ov-screen)">
+    <rect x="0" y="26" width="640" height="248" fill="url(#ov-frame)"/>
+    <rect x="0" y="26" width="640" height="248" fill="url(#ov-glow)"/>
+    <path d="M92 26h236l-96 248H0z" fill="url(#ov-haze)"/>
+    <ellipse cx="372" cy="168" rx="126" ry="70" fill="#0a080a" opacity="0.5"/>
+    <ellipse cx="300" cy="196" rx="54" ry="34" fill="#2b1f24" opacity="0.55"/>
+    <rect x="0" y="26" width="640" height="248" fill="url(#ov-vignette)"/>
+  </g>
+
+  <rect x="0" y="0" width="640" height="26" fill="#000000"/>
+  <rect x="0" y="274" width="640" height="26" fill="#000000"/>
+
+  <g transform="translate(30 281)">
+    <path d="M13.6 1.6A7 7 0 1 0 14.4 5.6" fill="none" stroke="#8fa6bd" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M5.6 2.8 10 5.6 5.6 8.4Z" fill="#b9cbdc"/>
+  </g>
+
+  <rect x="52" y="287" width="286" height="1.6" fill="#ffffff" opacity="0.10"/>
+  <rect x="52" y="287" width="176" height="1.6" fill="url(#ov-sheen)"/>
+
+  <g transform="translate(508 279)">
+    <rect x="0" y="0" width="46" height="17" rx="8.5" fill="#ffffff" fill-opacity="0.05"/>
+    <rect x="0.6" y="0.6" width="44.8" height="15.8" rx="7.9" fill="none" stroke="#ffffff" stroke-opacity="0.18"/>
+    <rect x="10" y="6.4" width="16" height="4.2" rx="2.1" fill="#ffffff" fill-opacity="0.56"/>
+    <rect x="31" y="5.6" width="6" height="5.8" rx="1.4" fill="#ffffff" fill-opacity="0.28"/>
+  </g>
+
+  <g transform="translate(566 279)">
+    <circle cx="8.5" cy="8.5" r="8" fill="#ffffff" fill-opacity="0.05"/>
+    <circle cx="8.5" cy="8.5" r="8" fill="none" stroke="#ffffff" stroke-opacity="0.18"/>
+    <path d="M5.6 7.2h1.9L10 5v7l-2.5-2.2H5.6z" fill="#ffffff" fill-opacity="0.5"/>
+    <path d="M12.1 6.7a2.7 2.7 0 0 1 0 3.6M13.9 5.2a4.9 4.9 0 0 1 0 6.6" fill="none" stroke="#ffffff" stroke-opacity="0.44" stroke-width="1.1" stroke-linecap="round"/>
+  </g>
+</svg>
