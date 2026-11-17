@@ -2,12 +2,14 @@
 /**
  * Self-test for the Host half and the injected client bundle.
  *
- * `index.js` only depends on the Web carrier's two methods, so the whole Host
- * half can be driven here with a fake context: registration is recorded, the
- * media resource is called with real `Request` objects, and the index transform
- * is applied to the real shell document. No DSH process is needed.
+ * `index.js` only depends on the Web carrier's route table, its index-injection
+ * event and Cordis effects, so the whole Host half can be driven here with a
+ * fake context: routes are registered, the media resource is called with real
+ * `Request` objects, and the injection rows are emitted into a table exactly as
+ * the shell does. Rows are then applied to the real shell document the way the
+ * shipped frontend applies them, so the curtain is verified end to end.
  *
- * Run: node scripts/selftest.mjs [path-to-index.html]
+ * Run: node scripts/selftest.mjs
  */
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -16,19 +18,8 @@ import { apply } from '../index.js'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
-/** The shell document this plugin is injected into (any index.html works). */
-const FALLBACK_INDEX = `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>DeepSeek Harness</title>
-    <script type="module" crossorigin src="./assets/index-abc.js"></script>
-  </head>
-  <body>
-    <div id="root"></div>
-  </body>
-</html>
-`
+/** The shell document the rows are injected into (copy of the shipped dist index). */
+const INDEX_FIXTURE = path.join(root, 'test', 'fixtures', 'index.html')
 
 let failures = 0
 let checks = 0
@@ -76,9 +67,38 @@ function balance (text, open, close) {
   return { final: depth, min }
 }
 
+/**
+ * Mirror of the shipped frontend's injection applier for the row kinds this
+ * bundle uses: `style` (and `script`) go into <head>, body `html` is appended
+ * to <body>, and a `global` row assigns `window[name]`.
+ */
+function applyRows (html, rows) {
+  let out = html
+  const window = {}
+  for (const row of rows) {
+    if (row.kind === 'global') {
+      window[row.name] = row.value
+    } else if (row.kind === 'style') {
+      out = out.replace('</head>', `<style>${row.text}</style></head>`)
+    } else if (row.kind === 'script') {
+      const injected = `<script>${row.text}</script>`
+      out = row.placement === 'body'
+        ? out.replace('</body>', `${injected}</body>`)
+        : out.replace('</head>', `${injected}</head>`)
+    } else if (row.kind === 'html') {
+      const injected = row.html
+      out = row.placement === 'head'
+        ? out.replace('</head>', `${injected}</head>`)
+        : out.replace('</body>', `${injected}</body>`)
+    }
+  }
+  return { html: out, window }
+}
+
 function fakeContext (config) {
   const routes = []
   const taps = []
+  const injections = []
   const effects = []
   const ctx = {
     webServer: {
@@ -91,6 +111,10 @@ function fakeContext (config) {
         return () => {}
       },
     },
+    on (event, listener) {
+      if (event === 'webserver/index-inject') injections.push(listener)
+      return () => {}
+    },
     effect (callback) {
       effects.push(callback())
       return () => {}
@@ -100,27 +124,34 @@ function fakeContext (config) {
     },
   }
   apply(ctx, config)
-  return { routes, taps, effects }
+  return { routes, taps, injections, effects }
+}
+
+function rowOf (rows, kind) {
+  return rows.find((row) => row.kind === kind)
 }
 
 async function main () {
-  const indexHtml = await readFile(
-    process.argv[2] ? path.resolve(process.argv[2]) : path.join(root, 'test', 'fixtures', 'index.html'),
-    'utf8',
-  ).catch(() => FALLBACK_INDEX)
+  const indexHtml = await readFile(INDEX_FIXTURE, 'utf8')
+  const hostSource = await readFile(path.join(root, 'index.js'), 'utf8')
+  const client = await readFile(path.join(root, 'client.js'), 'utf8')
 
-  console.log('Host half — route registration')
-  const { routes, taps, effects } = fakeContext({})
-  check('registers exactly one route', routes.length === 1, `got ${routes.length}`)
-  check('registers exactly one index tap', taps.length === 1, `got ${taps.length}`)
-  check('route is a prefix route', routes[0]?.kind === 'prefix', routes[0]?.kind)
-  check('route path has no trailing slash', routes[0]?.path === '/dsh-openvideo/media', routes[0]?.path)
+  console.log('Host half — registration')
+  const { routes, taps, injections, effects } = fakeContext({})
+  check('registers two routes', routes.length === 2, `got ${routes.length}`)
+  check('registers one index-injection listener', injections.length === 1, `got ${injections.length}`)
+  // Regression guard: the Desktop window serves its own index and never runs
+  // index transforms, so the curtain must not depend on tapIndex.
+  check('no longer depends on tapIndex', taps.length === 0, `got ${taps.length} taps`)
+  check('registers a prefix media route', routes.some((r) => r.kind === 'prefix' && r.path === '/dsh-openvideo/media'))
+  check('registers an exact config route', routes.some((r) => r.kind === 'exact' && r.path === '/dsh-openvideo/config'))
   check('effects were created', effects.length >= 1, `got ${effects.length}`)
 
-  const resource = routes[0].resource
+  const media = routes.find((r) => r.path === '/dsh-openvideo/media').resource
+  const config = routes.find((r) => r.path === '/dsh-openvideo/config').resource
+  const base = 'http://placeholder/dsh-openvideo/media/'
 
   console.log('\nHost half — media resource')
-  const base = 'http://placeholder/dsh-openvideo/media/'
   const expected = {
     'boot.webm': 'video/webm',
     'boot.mp4': 'video/mp4',
@@ -129,7 +160,7 @@ async function main () {
     'curtain.jpg': 'image/jpeg',
   }
   for (const [file, type] of Object.entries(expected)) {
-    const response = await resource(new Request(`${base}${file}`))
+    const response = await media(new Request(`${base}${file}`))
     const body = Buffer.from(await response.arrayBuffer())
     check(`${file} -> 200`, response.status === 200, String(response.status))
     check(`${file} content-type`, response.headers.get('content-type') === type, response.headers.get('content-type'))
@@ -137,90 +168,94 @@ async function main () {
     check(`${file} has etag`, Boolean(response.headers.get('etag')))
     check(`${file} body non-empty`, body.byteLength > 0, `${body.byteLength} bytes`)
   }
-
-  const notAllowed = await resource(new Request(`${base}../index.js`))
-  check('path traversal is a 404', notAllowed.status === 404, String(notAllowed.status))
-  const unknown = await resource(new Request(`${base}nope.mp4`))
-  check('unknown file is a 404', unknown.status === 404, String(unknown.status))
-  const post = await resource(new Request(`${base}boot.mp4`, { method: 'POST' }))
+  check('path traversal is a 404', (await media(new Request(`${base}../index.js`))).status === 404)
+  check('unknown file is a 404', (await media(new Request(`${base}nope.mp4`))).status === 404)
+  const post = await media(new Request(`${base}boot.mp4`, { method: 'POST' }))
   check('POST is a 405', post.status === 405, String(post.status))
   check('405 advertises Allow', post.headers.get('allow') === 'GET, HEAD', post.headers.get('allow'))
 
   console.log('\nHost half — range, HEAD and revalidation')
-  const total = Number((await resource(new Request(`${base}boot.webm`))).headers.get('content-length'))
-  const ranged = await resource(new Request(`${base}boot.webm`, { headers: { range: 'bytes=100-199' } }))
-  const rangedBytes = Buffer.from(await ranged.arrayBuffer())
+  const total = Number((await media(new Request(`${base}boot.webm`))).headers.get('content-length'))
+  const ranged = await media(new Request(`${base}boot.webm`, { headers: { range: 'bytes=100-199' } }))
   check('range -> 206', ranged.status === 206, String(ranged.status))
-  check('range length is 100', rangedBytes.byteLength === 100, `${rangedBytes.byteLength} bytes`)
+  check('range length is 100', (await ranged.arrayBuffer()).byteLength === 100)
   check('range content-range header', ranged.headers.get('content-range') === `bytes 100-199/${total}`, ranged.headers.get('content-range'))
-
-  const suffix = await resource(new Request(`${base}poster.jpg`, { headers: { range: 'bytes=-50' } }))
-  check('suffix range -> 206', suffix.status === 206, String(suffix.status))
-  check('suffix range length is 50', (await suffix.arrayBuffer()).byteLength === 50)
-
-  const unsatisfiable = await resource(new Request(`${base}poster.jpg`, { headers: { range: `bytes=${total + 10}-` } }))
-  check('unsatisfiable range -> 416', unsatisfiable.status === 416, String(unsatisfiable.status))
-
-  const head = await resource(new Request(`${base}boot.mp4`, { method: 'HEAD' }))
+  check('suffix range -> 206', (await media(new Request(`${base}poster.jpg`, { headers: { range: 'bytes=-50' } }))).status === 206)
+  check('unsatisfiable range -> 416', (await media(new Request(`${base}poster.jpg`, { headers: { range: `bytes=${total + 10}-` } }))).status === 416)
+  const head = await media(new Request(`${base}boot.mp4`, { method: 'HEAD' }))
   check('HEAD -> 200 with no body', head.status === 200 && (await head.arrayBuffer()).byteLength === 0)
+  const etag = (await media(new Request(`${base}boot.mp4`))).headers.get('etag')
+  check('matching If-None-Match -> 304', (await media(new Request(`${base}boot.mp4`, { headers: { 'if-none-match': etag } }))).status === 304)
 
-  const etag = (await resource(new Request(`${base}boot.mp4`))).headers.get('etag')
-  const revalidated = await resource(new Request(`${base}boot.mp4`, { headers: { 'if-none-match': etag } }))
-  check('matching If-None-Match -> 304', revalidated.status === 304, String(revalidated.status))
+  console.log('\nHost half — settings route')
+  const settingsResponse = await config(new Request('http://placeholder/dsh-openvideo/config'))
+  check('config -> 200', settingsResponse.status === 200, String(settingsResponse.status))
+  check('config is JSON', (settingsResponse.headers.get('content-type') || '').includes('application/json'))
+  check('config is not cached', settingsResponse.headers.get('cache-control') === 'no-store')
+  const served = await settingsResponse.json()
+  check('config carries the media base', served.mediaBase === '/dsh-openvideo/media/', served.mediaBase)
+  check('config carries the defaults', served.enabled === true && served.playMode === 'always' && served.skippable === true)
+  check('config names the ready event', served.readyEvent === 'dsh-openvideo:ready', served.readyEvent)
+  check('config POST is a 405', (await config(new Request('http://placeholder/dsh-openvideo/config', { method: 'POST' }))).status === 405)
 
-  console.log('\nHost half — index injection')
-  const injected = taps[0](indexHtml)
-  // Whatever the shipped document calls its module entry, the injection must
-  // not disturb it. Derive the name from the input instead of hardcoding one.
-  const appScript = indexHtml.match(/<script[^>]*\ssrc="([^"]+)"/u)?.[1]
-  const shellRoot = /<div id="root"/u.test(indexHtml)
-  check('marks the document', injected.includes('dsh-openvideo'))
-  check('injects the settings global', injected.includes('window.__DSH_OPENVIDEO__='))
-  check('injects the curtain div', injected.includes('id="dsh-openvideo-curtain"'))
-  check('injects the curtain style', injected.includes('data-dsh-openvideo="curtain"'))
-  check('inlines the curtain image as base64', /data:image\/jpeg;base64,[A-Za-z0-9+/=]{200,}/u.test(injected))
-  check('keeps the shell root', !shellRoot || injected.includes('<div id="root"'))
-  check('keeps the app entry script', !appScript || injected.includes(appScript), appScript)
-  check('is idempotent', taps[0](injected) === injected, 'second pass changed the document')
-  check('curtain is the first body child',
-    injected.indexOf('id="dsh-openvideo-curtain"') > injected.indexOf('<body')
-    && (!shellRoot || injected.indexOf('id="dsh-openvideo-curtain"') < injected.indexOf('<div id="root"')))
-
-  const settings = JSON.parse(injected.match(/window\.__DSH_OPENVIDEO__=(\{.*?\})<\/script>/su)[1])
-  check('settings carry the media base', settings.mediaBase === '/dsh-openvideo/media/', settings.mediaBase)
-  check('settings carry defaults', settings.enabled === true && settings.playMode === 'always')
-
-  console.log('\nHost half — injected script parses')
-  const scripts = [...injected.matchAll(/<script data-dsh-openvideo="curtain">([\s\S]*?)<\/script>/gu)]
-  check('exactly one curtain script', scripts.length === 1, `got ${scripts.length}`)
+  console.log('\nHost half — injection rows')
+  const table = []
+  injections[0](table)
+  check('pushes four rows', table.length === 4, `got ${table.length}`)
+  const globalRow = rowOf(table, 'global')
+  check('first row is the settings global', table[0] === globalRow && globalRow.name === '__DSH_OPENVIDEO__', globalRow && globalRow.name)
+  check('global row matches the config route', JSON.stringify(globalRow.value) === JSON.stringify(served))
+  check('has a style row', Boolean(rowOf(table, 'style')))
+  check('style row inlines the curtain image', /data:image\/jpeg;base64,[A-Za-z0-9+/=]{200,}/u.test(rowOf(table, 'style').text))
+  const htmlRow = rowOf(table, 'html')
+  check('html row targets the body', htmlRow && htmlRow.placement === 'body', htmlRow && htmlRow.placement)
+  check('html row is the curtain markup', htmlRow && htmlRow.html.includes('id="dsh-openvideo-curtain"'))
+  const scriptRow = rowOf(table, 'script')
+  check('script row targets the head', scriptRow && scriptRow.placement === 'head', scriptRow && scriptRow.placement)
   try {
-    new Function(scripts[0][1]) // eslint-disable-line no-new-func
+    new Function(scriptRow.text) // eslint-disable-line no-new-func
     check('curtain script is valid JavaScript', true)
   } catch (error) {
     check('curtain script is valid JavaScript', false, error.message)
   }
-  check('config is inlined safely', !injected.includes('</script><script>null'))
+  check('curtain script lifts on the ready event', scriptRow.text.includes('"dsh-openvideo:ready"'))
+  check('curtain script checks the boot graph once parsed', scriptRow.text.includes('DOMContentLoaded'))
+
+  console.log('\nHost half — rows applied to the shell document')
+  const applied = applyRows(indexHtml, table)
+  check('document keeps the shell root', applied.html.includes('<div id="root">'))
+  check('document gains the curtain', applied.html.includes('id="dsh-openvideo-curtain"'))
+  check('curtain lands inside the body', applied.html.indexOf('id="dsh-openvideo-curtain"') > applied.html.indexOf('<body'))
+  check('curtain styles land in the head', applied.html.indexOf('<style>#dsh-openvideo-curtain') < applied.html.indexOf('</head>'))
+  check('inlined image survives the round trip', applied.html.includes('data:image/jpeg;base64,'))
+  check('settings global is set on window', applied.window.__DSH_OPENVIDEO__ && applied.window.__DSH_OPENVIDEO__.enabled === true)
+  check('applied document still parses as one head/body pair',
+    (applied.html.match(/<body/gu) || []).length === 1 && (applied.html.match(/<\/head>/gu) || []).length === 1)
 
   console.log('\nHost half — settings')
   const disabled = fakeContext({ enabled: false })
-  const disabledHtml = disabled.taps[0](indexHtml)
-  check('disabled still exposes settings (client stays inert)', disabledHtml.includes('window.__DSH_OPENVIDEO__='))
-  check('disabled injects no curtain', !disabledHtml.includes('id="dsh-openvideo-curtain"'))
+  const disabledRows = []
+  disabled.injections[0](disabledRows)
+  check('disabled still publishes settings', disabledRows.length >= 1 && rowOf(disabledRows, 'global'))
+  check('disabled injects no curtain', !rowOf(disabledRows, 'html'))
 
   const noCurtain = fakeContext({ curtain: false })
-  check('curtain:false injects no curtain markup', !noCurtain.taps[0](indexHtml).includes('id="dsh-openvideo-curtain"'))
-  check('curtain:false keeps the settings global', noCurtain.taps[0](indexHtml).includes('window.__DSH_OPENVIDEO__='))
+  const noCurtainRows = []
+  noCurtain.injections[0](noCurtainRows)
+  check('curtain:false injects no curtain markup', !rowOf(noCurtainRows, 'html'))
+  check('curtain:false keeps the settings global', Boolean(rowOf(noCurtainRows, 'global')))
 
   const once = fakeContext({ playMode: 'oncePerSession' })
-  check('playMode reaches the client', once.taps[0](indexHtml).includes('"playMode":"oncePerSession"'))
+  const onceRows = []
+  once.injections[0](onceRows)
+  check('playMode reaches the client', JSON.stringify(onceRows) .includes('"playMode":"oncePerSession"'))
 
   console.log('\nClient half — bundle shape')
-  const client = await readFile(path.join(root, 'client.js'), 'utf8')
   check('registers through the module loader', client.includes('window.__ModuleLoader__.load({'))
   check('declares the package id', /id:\s*'dsh-openvideo'/.test(client))
   check('registers into shell.overlay', client.includes("ctx.slots.inject('shell.overlay'"))
   check('opts back into pointer events', /\.dsh-ov\{[^}]*pointer-events:auto/.test(client))
-  check('curtain never blocks the overlay', /#dsh-openvideo-curtain\{[^}]*pointer-events:none/.test(await readFile(path.join(root, 'index.js'), 'utf8')))
+  check('curtain never blocks the overlay', /#dsh-openvideo-curtain\{[^}]*pointer-events:none/.test(hostSource))
   check('is a modal surface for assistive tech', client.includes("'aria-modal': 'true'") && client.includes('role: \'dialog\''))
   check('takes focus while it owns the frame', client.includes('rootRef.current') && client.includes('.focus({ preventScroll: true })'))
   check('does not start playback before the first frame', /const onLoaded = \(\) => \{[\s\S]{0,260}play\(\)/.test(client))
@@ -228,10 +263,15 @@ async function main () {
   check('handles autoplay refusal', client.includes('.play()') && client.includes('catch'))
   check('cleans up its timers', client.includes('timersRef'))
   check('never writes DOM outside the tree', !client.includes('document.body.appendChild'))
-  check('sends the ready event for the curtain', client.includes('dispatchEvent(new CustomEvent'))
+
+  console.log('\nClient half — carrier independence')
+  check('falls back to the settings route', client.includes("'/dsh-openvideo/config'"))
+  check('detects the shell origin', client.includes('function isShellOrigin'))
+  check('prefetches media as a blob in the shell', client.includes('URL.createObjectURL'))
+  check('renders sources from resolved settings', client.includes('(sources || []).map'))
+  check('single mount guard', client.includes('if (mounted) return'))
 
   console.log('\nStylesheets — structural sanity')
-  const hostSource = await readFile(path.join(root, 'index.js'), 'utf8')
   const stylesheets = [
     ['client.js overlay', templateOf(client, 'const CSS = `')],
     ['index.js curtain', templateOf(hostSource, 'const CURTAIN_CSS = `')],
@@ -247,8 +287,7 @@ async function main () {
     check(`${label} has no stray style close tag`, !css.includes('</style'))
     check(`${label} has no empty declaration`, !css.includes(';;'))
   }
-  const posterWired = /className: 'dsh-ov-media'[\s\S]{0,400}className: 'dsh-ov-poster'/.test(client)
-  check('poster and video share one animated wrapper', posterWired)
+  check('poster and video share one animated wrapper', /className: 'dsh-ov-media'[\s\S]{0,400}className: 'dsh-ov-poster'/.test(client))
 
   console.log(`\n${checks - failures}/${checks} checks passed`)
   if (failures > 0) {

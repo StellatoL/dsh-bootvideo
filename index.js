@@ -1,18 +1,23 @@
 /**
  * dsh-openvideo — Host half.
  *
- * Two jobs, both on the Web carrier:
+ * Three carrier-facing pieces, all on services the Web surface provides:
  *
- * 1. Serve the bundled boot clip (`media/*`) from a named prefix route. The
- *    package-asset route only answers image extensions, so video needs its own
- *    route; this one supports `Range` (the browser seeks with it), `HEAD`, and
+ * 1. **Media route.** `media/*` is served from a named prefix route. The
+ *    package-asset route only answers image extensions, so video needs its own;
+ *    this one supports `Range` (the browser seeks with it), `HEAD`, and
  *    conditional `If-None-Match` revalidation.
  *
- * 2. Inject the "curtain": a few kilobytes of HTML/CSS/JS placed in the first
- *    paint of `index.html`, before any client module exists. It covers the app
- *    shell while modules load and lifts itself when the React overlay in
- *    `client.js` reports its first painted frame. Without it the app shell
- *    flashes for a frame before the overlay mounts.
+ * 2. **Settings route.** `GET /dsh-openvideo/config` returns the resolved
+ *    settings. The Client half reads an injected global when one is present and
+ *    falls back to this route otherwise, so the boot sequence still runs on a
+ *    carrier that does not apply index injections.
+ *
+ * 3. **Index rows.** `webserver/index-inject` is the carrier-independent table
+ *    the shell renders into `index.html` (a Web response) or applies to its own
+ *    document (the Desktop `dsh-app://app/` window). The rows carry the settings
+ *    global and the pre-JS curtain. `tapIndex` is deliberately NOT used: the
+ *    Desktop serves its own index and never runs index transforms.
  *
  * No `Config` schema is exported on purpose: the bundle then has zero runtime
  * dependencies and still resolves from any profile. Settings are read
@@ -35,6 +40,9 @@ const MEDIA_PATH = '/dsh-openvideo/media/'
 /** Route path handed to the Web carrier (no trailing slash, see above). */
 const MEDIA_ROUTE = '/dsh-openvideo/media'
 
+/** Settings route the Client half falls back to. */
+const CONFIG_ROUTE = '/dsh-openvideo/config'
+
 /** Media this route is allowed to answer. Anything else is a 404, not a file read. */
 const ALLOWED_FILES = new Set(['boot.mp4', 'boot.webm', 'poster.jpg', 'poster.webp', 'curtain.jpg'])
 
@@ -52,7 +60,7 @@ const READY_EVENT = 'dsh-openvideo:ready'
 /** sessionStorage key used by `playMode: oncePerSession`. */
 const STORAGE_KEY = 'dsh-openvideo:booted'
 
-/** Global the client half reads its settings from. */
+/** Global the client half reads its settings from, when injections are applied. */
 const CONFIG_GLOBAL = '__DSH_OPENVIDEO__'
 
 /** The Web carrier is required; everywhere else this bundle stays inactive. */
@@ -77,6 +85,19 @@ function normalizeConfig (raw) {
     startMuted: input.startMuted === undefined ? DEFAULTS.startMuted : Boolean(input.startMuted),
     skippable: input.skippable === undefined ? DEFAULTS.skippable : Boolean(input.skippable),
     curtain: input.curtain === undefined ? DEFAULTS.curtain : Boolean(input.curtain),
+  }
+}
+
+/** The settings both the injected global and the config route carry. */
+function publicSettings (settings) {
+  return {
+    enabled: settings.enabled,
+    playMode: settings.playMode,
+    startMuted: settings.startMuted,
+    skippable: settings.skippable,
+    mediaBase: MEDIA_PATH,
+    readyEvent: READY_EVENT,
+    storageKey: STORAGE_KEY,
   }
 }
 
@@ -195,75 +216,88 @@ export function apply (ctx, config) {
     return new Response(request.method === 'HEAD' ? null : entry.bytes, { status: 200, headers })
   }
 
-  const injection = buildInjection({
+  async function serveConfig (request) {
+    if (request.method !== 'GET' && request.method !== 'HEAD') {
+      return new Response(null, { status: 405, headers: { allow: 'GET, HEAD' } })
+    }
+    const body = JSON.stringify(publicSettings(settings))
+    return new Response(request.method === 'HEAD' ? null : body, {
+      headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
+    })
+  }
+
+  const rows = buildInjectionRows({
     settings,
-    hasCurtain: Boolean(curtainBytes),
-    curtainDataUrl: curtainBytes ? `data:image/jpeg;base64,${curtainBytes.toString('base64')}` : '',
     mediaBase: MEDIA_PATH,
+    curtainEnabled: settings.enabled && settings.curtain,
+    curtainDataUrl: curtainBytes ? `data:image/jpeg;base64,${curtainBytes.toString('base64')}` : '',
   })
 
   ctx.effect(() => {
-    const disposeRoute = ctx.webServer.register({
+    const disposeMedia = ctx.webServer.register({
       kind: 'prefix',
       path: MEDIA_ROUTE,
       resource: (request) => serveMedia(request),
     })
-    const disposeTap = ctx.webServer.tapIndex((html) => injectIntoDocument(html, injection))
+    const disposeConfig = ctx.webServer.register({
+      kind: 'exact',
+      path: CONFIG_ROUTE,
+      resource: (request) => serveConfig(request),
+    })
+    // Structured rows reach both carriers: the Web response renders them into
+    // index.html, and the Desktop shell applies the same table to its document.
+    const disposeInject = ctx.on('webserver/index-inject', (table) => {
+      if (Array.isArray(table)) table.push(...rows)
+    })
     return () => {
-      disposeTap()
-      disposeRoute()
+      disposeInject()
+      disposeConfig()
+      disposeMedia()
     }
   })
 }
 
 /**
- * Build the head/body fragments once. Both are plain strings, so the index
- * transform stays pure and allocation-free per request.
+ * Build the index rows once. Rows are plain data, read fresh at emit time.
+ * Only the settings global is always pushed; the curtain (styles, markup and
+ * its inline behaviour) is optional.
  */
-function buildInjection ({ settings, hasCurtain, curtainDataUrl, mediaBase }) {
-  const payload = JSON.stringify({
-    enabled: settings.enabled,
-    playMode: settings.playMode,
-    startMuted: settings.startMuted,
-    skippable: settings.skippable,
-    mediaBase,
-    readyEvent: READY_EVENT,
-    storageKey: STORAGE_KEY,
-  }).replaceAll('<', '\\u003c')
-
-  const curtainEnabled = settings.enabled && settings.curtain && hasCurtain
-
-  const head = [
-    `<script data-dsh-openvideo="config">window.${CONFIG_GLOBAL}=${payload}</script>`,
-    curtainEnabled ? `<style data-dsh-openvideo="curtain">${CURTAIN_CSS.replace('__CURTAIN_IMAGE__', curtainDataUrl)}</style>` : '',
-    curtainEnabled ? `<script data-dsh-openvideo="curtain">${curtainScript(READY_EVENT, STORAGE_KEY, settings.playMode)}</script>` : '',
-  ].join('')
-
-  const body = curtainEnabled
-    ? '<div id="dsh-openvideo-curtain" role="presentation">'
-      + '<div class="dsh-ovc-frame"></div>'
-      + '<div class="dsh-ovc-glow"></div>'
-      + '<div class="dsh-ovc-foot">'
-      + '<span class="dsh-ovc-mark">DeepSeek Harness</span>'
-      + '<span class="dsh-ovc-track"><i class="dsh-ovc-bar"></i></span>'
-      + '</div>'
-      + '</div>'
-    : ''
-
-  return { head, body, curtainEnabled }
+function buildInjectionRows ({ settings, mediaBase, curtainEnabled, curtainDataUrl }) {
+  const rows = [{ kind: 'global', name: CONFIG_GLOBAL, value: publicSettings(settings) }]
+  if (!curtainEnabled || !curtainDataUrl) return rows
+  rows.push({ kind: 'style', text: CURTAIN_CSS.replace('__CURTAIN_IMAGE__', curtainDataUrl) })
+  rows.push({ kind: 'html', placement: 'body', html: CURTAIN_MARKUP })
+  rows.push({
+    kind: 'script',
+    placement: 'head',
+    text: curtainScript(READY_EVENT, STORAGE_KEY, settings.playMode),
+  })
+  return rows
 }
 
-/** The curtain's inline behaviour: decide early, lift on the ready event. */
+/** The curtain markup: one fixed layer, image inlined as a data URL by the style row. */
+const CURTAIN_MARKUP = '<div id="dsh-openvideo-curtain" role="presentation">'
+  + '<div class="dsh-ovc-frame"></div>'
+  + '<div class="dsh-ovc-glow"></div>'
+  + '<div class="dsh-ovc-foot">'
+  + '<span class="dsh-ovc-mark">DeepSeek Harness</span>'
+  + '<span class="dsh-ovc-track"><i class="dsh-ovc-bar"></i></span>'
+  + '</div>'
+  + '</div>'
+
+/**
+ * The curtain's inline behaviour. It decides early (disabled / already seen),
+ * re-checks the boot graph once the document is parsed (a missing client entry
+ * means no animation is coming), and lifts on the overlay's ready event with a
+ * timeout as the last resort.
+ */
 function curtainScript (readyEvent, storageKey, playMode) {
   return `(function(){try{
 var root=document.documentElement;
-var graph=window.__DSH_BOOT__;
-var entries=graph&&graph.entries;
-var present=!!(entries&&entries.some(function(e){return e&&e.id==='dsh-openvideo'}));
+var cfg=window.${CONFIG_GLOBAL}||{};
 var seen=false;
 try{seen=sessionStorage.getItem(${JSON.stringify(storageKey)})==='1'}catch(e){}
-var cfg=window.${CONFIG_GLOBAL}||{};
-if(!present||!cfg.enabled||(${JSON.stringify(playMode)}==='oncePerSession'&&seen)){root.classList.add('dsh-ovc-skip');return}
+if(cfg.enabled===false||(${JSON.stringify(playMode)}==='oncePerSession'&&seen)){root.classList.add('dsh-ovc-skip');return}
 var done=false;
 function lift(){
   if(done)return;done=true;
@@ -272,29 +306,17 @@ function lift(){
   el.classList.add('dsh-ovc-lift');
   setTimeout(function(){if(el.parentNode)el.parentNode.removeChild(el)},420);
 }
+function checkEntry(){
+  var graph=window.__DSH_BOOT__;
+  if(!graph||!graph.entries)return;
+  var present=graph.entries.some(function(e){return e&&e.id==='dsh-openvideo'});
+  if(!present){done=true;root.classList.add('dsh-ovc-skip');}
+}
+checkEntry();
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',checkEntry);
 window.addEventListener(${JSON.stringify(readyEvent)},lift);
 setTimeout(lift,4000);
 }catch(e){try{document.documentElement.classList.add('dsh-ovc-skip')}catch(_){}}})();`
-}
-
-/** Place the fragments without disturbing anything else in the document. */
-function injectIntoDocument (html, { head, body }) {
-  try {
-    if (typeof html !== 'string' || html.indexOf('dsh-openvideo') !== -1) return html
-    let out = html
-    if (body) {
-      const bodyOpen = out.indexOf('<body')
-      if (bodyOpen === -1) return html
-      const bodyClose = out.indexOf('>', bodyOpen)
-      if (bodyClose === -1) return html
-      out = out.slice(0, bodyClose + 1) + body + out.slice(bodyClose + 1)
-    }
-    const headClose = out.indexOf('</head>')
-    if (headClose === -1) return html
-    return out.slice(0, headClose) + head + out.slice(headClose)
-  } catch {
-    return html
-  }
 }
 
 /**

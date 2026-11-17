@@ -3,6 +3,26 @@
 All notable changes to this bundle are recorded here. Versions follow SemVer and
 describe the bundle, not the DSH release it was built against.
 
+## 1.1.0
+
+### Fixed
+
+- **The boot sequence did not run in the Desktop app.** The window serves the shell from
+  its own `dsh-app://app/` origin and never runs `webServer.tapIndex` transforms, so the
+  injected settings global was missing and the Client half stayed inert. The Host half
+  now contributes rows to the carrier-independent `webserver/index-inject` table, which
+  both the Web response and the Desktop shell apply.
+- The Client half no longer depends on injection at all: it falls back to a new
+  `GET /dsh-openvideo/config` route, and under the Desktop origin it fetches the clip
+  once and plays it from a blob URL instead of relying on range streaming through the
+  shell bridge.
+
+### Changed
+
+- Self-test covers the injection rows, the settings route and the carrier fallbacks
+  (102 checks), including a regression guard that the curtain no longer depends on
+  `tapIndex`.
+
 ## 1.0.0
 
 First release.

@@ -6,7 +6,7 @@ screen to the workspace. The clip, its poster frames and the pre-JS curtain ship
 the package and are served by a Host route on the same listener, so playback makes no
 network requests.
 
-Version 1.0.0 · [Repository](https://github.com/StellatoL/dsh-openvideo) · [简体中文](README.zh-CN.md) · MIT for the
+Version 1.1.0 · [Repository](https://github.com/StellatoL/dsh-openvideo) · [简体中文](README.zh-CN.md) · MIT for the
 code, not for the video (see [Licence](#licence)).
 
 ![The boot overlay: letterboxed footage with a progress line and a skip control along the bottom bar](docs/preview.svg)
@@ -80,13 +80,20 @@ so restate every key you want to keep:
 ```
 
 The Plugins page reports the row and can enable or disable it; the values live in the
-profile patch. Settings are compiled into the served `index.html`, so reload after
-changing them.
+profile patch. Settings are read when the page's startup inputs are produced, so reload
+the page after changing them — and in the Desktop app, restart the app, because it reads
+its startup inputs once at launch.
 
 ## How it works
 
 Two halves, one package, no shared runtime beyond the DOM and one injected settings
 global.
+
+Both carriers are supported: a browser page that the Web server renders, and the
+Desktop app, whose window loads the shell from its own `dsh-app://app/` origin and
+applies Host startup inputs itself. The bundle therefore hooks the carrier-independent
+`webserver/index-inject` table rather than the Web-only `tapIndex` transform, and the
+Client half can fall back to a settings route when no rows were applied.
 
 ### Host half — `index.js`
 
@@ -100,14 +107,18 @@ One Loader row inserted by `cordis.patch.yml` (`id: dsh-openvideo`). The module 
    416 for an unsatisfiable range, 405 for other methods, and 404 for anything outside
    the allow-list. Each file is cached in memory and re-read only when its size or
    modification time changes.
-2. **Index injection.** Through `ctx.webServer.tapIndex(...)` it writes into
-   `index.html` a settings global `window.__DSH_OPENVIDEO__` and, when the curtain is
-   enabled, inline CSS, a synchronous inline script and one `<div>` (with its children)
-   as the first child of `<body>`. That runs before any client module, so the app shell
-   never flashes. The curtain removes itself when the plugin's client entry is missing
-   from `window.__DSH_BOOT__`, when the plugin is disabled, or when the session already
-   saw the animation in `oncePerSession` mode; otherwise it lifts on the overlay's ready
-   event, with a 4 s fallback.
+2. **Settings route.** `GET /dsh-openvideo/config` returns the resolved settings as JSON.
+   The Client half reads the injected global first and asks this route only when no rows
+   were applied, so the sequence still runs on a carrier that drops them.
+3. **Index rows.** It appends rows to the `webserver/index-inject` table: a
+   `global __DSH_OPENVIDEO__` settings row and, when the curtain is enabled, a `style`
+   row (inline CSS with the blurred frame as a data URL), a body `html` row (the curtain
+   markup) and a head `script` row (its behaviour). A Web response renders those rows
+   into `index.html`; the Desktop shell applies the same table to its own document. The
+   curtain paints before any client module, so the app shell never flashes. It hides
+   itself when the client entry is missing from `window.__DSH_BOOT__`, when the plugin
+   is disabled, or when the session already saw the animation in `oncePerSession` mode;
+   otherwise it lifts on the overlay's ready event, with a 4 s fallback.
 
 ### Client half — `client.js`
 
@@ -120,6 +131,9 @@ screen.
   bars, film grain, vignette, brand line, live progress line, sound toggle and skip
   pill; on end or skip the bars retract and the whole overlay blurs and fades out over
   about 0.66 s.
+- On the Desktop origin the clip is fetched once and played from a blob URL, because
+  media requests there are relayed through the shell bridge; everywhere else the
+  `<video>` streams the files directly with range requests.
 - It renders its own `<style>` inside its React tree, so unmounting removes every
   effect with it.
 - Autoplay refusal, decode errors and reduced motion are handled in place; the 7 s

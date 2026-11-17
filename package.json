@@ -1,6 +1,6 @@
 {
   "name": "dsh-openvideo",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "Full-screen boot animation for the DeepSeek Harness Web GUI: plays a bundled clip on startup, then hands off to the workspace.",
   "type": "module",

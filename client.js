@@ -38,21 +38,80 @@ window.__ModuleLoader__.load({
 
     // ------------------------------------------------------------- settings
 
-    /** Read the Host-injected settings; absent means the Host half is inactive. */
-    function readSettings () {
-      const injected = window.__DSH_OPENVIDEO__
-      if (!injected || typeof injected !== 'object') return null
-      const mediaBase = typeof injected.mediaBase === 'string' && injected.mediaBase
-        ? injected.mediaBase
+    /** Coerce one settings object (injected global or config route) into shape. */
+    function normalizeSettings (raw) {
+      if (!raw || typeof raw !== 'object') return null
+      const mediaBase = typeof raw.mediaBase === 'string' && raw.mediaBase
+        ? raw.mediaBase
         : '/dsh-openvideo/media/'
       return {
-        enabled: injected.enabled !== false,
-        playMode: injected.playMode === 'oncePerSession' ? 'oncePerSession' : 'always',
-        startMuted: injected.startMuted !== false,
-        skippable: injected.skippable !== false,
+        enabled: raw.enabled !== false,
+        playMode: raw.playMode === 'oncePerSession' ? 'oncePerSession' : 'always',
+        startMuted: raw.startMuted !== false,
+        skippable: raw.skippable !== false,
         mediaBase,
-        readyEvent: typeof injected.readyEvent === 'string' ? injected.readyEvent : 'dsh-openvideo:ready',
-        storageKey: typeof injected.storageKey === 'string' ? injected.storageKey : 'dsh-openvideo:booted',
+        readyEvent: typeof raw.readyEvent === 'string' ? raw.readyEvent : 'dsh-openvideo:ready',
+        storageKey: typeof raw.storageKey === 'string' ? raw.storageKey : 'dsh-openvideo:booted',
+      }
+    }
+
+    /** Settings the shell injected as an index row, when this carrier applies them. */
+    function readSettings () {
+      return normalizeSettings(window.__DSH_OPENVIDEO__)
+    }
+
+    /**
+     * Carrier-independent settings fallback. A carrier that renders its own
+     * document (the Desktop `dsh-app://app/` window) applies the injection rows
+     * but a carrier that applies neither still has the Host's route.
+     */
+    async function fetchSettings () {
+      if (typeof fetch !== 'function') return null
+      try {
+        const response = await fetch('/dsh-openvideo/config', { headers: { accept: 'application/json' } })
+        if (!response.ok) return null
+        return normalizeSettings(await response.json())
+      } catch {
+        return null
+      }
+    }
+
+    /** True for the Desktop renderer's custom `dsh-app://app/` origin. */
+    function isShellOrigin () {
+      try {
+        return typeof location !== 'undefined'
+          && location.protocol !== 'http:'
+          && location.protocol !== 'https:'
+      } catch {
+        return false
+      }
+    }
+
+    function directSources (base) {
+      return [
+        { key: 'webm', src: `${base}boot.webm`, type: 'video/webm' },
+        { key: 'mp4', src: `${base}boot.mp4`, type: 'video/mp4' },
+      ]
+    }
+
+    /**
+     * Resolve playable `<source>` entries. Under the Desktop origin media is
+     * relayed through the shell bridge; a blob URL built from one plain fetch is
+     * more predictable there than asking that bridge for byte ranges. Everywhere
+     * else the element streams the files directly.
+     */
+    async function resolveSources (base) {
+      if (!isShellOrigin() || typeof fetch !== 'function' || typeof URL.createObjectURL !== 'function') {
+        return directSources(base)
+      }
+      try {
+        const response = await fetch(`${base}boot.webm`)
+        if (!response.ok) return directSources(base)
+        const blob = await response.blob()
+        if (!blob.size) return directSources(base)
+        return [{ key: 'webm', src: URL.createObjectURL(blob), type: blob.type || 'video/webm' }]
+      } catch {
+        return directSources(base)
       }
     }
 
@@ -91,7 +150,6 @@ window.__ModuleLoader__.load({
   60%{opacity:.55}
   100%{opacity:0;filter:blur(9px) saturate(1.1);transform:scale(1.04)}}
 
-.dsh-ov-stage{position:absolute;inset:0;overflow:hidden;background:#0b090c}
 .dsh-ov-stage{position:absolute;inset:0;overflow:hidden;background:#0b090c}
 /* One animated wrapper holds the poster AND the video, so the push-in and the
    colour grade stay identical across the crossfade instead of drifting apart. */
@@ -187,7 +245,7 @@ window.__ModuleLoader__.load({
           : h('path', { d: 'M15.6 9.2a4 4 0 0 1 0 5.6M18.3 6.9a7.4 7.4 0 0 1 0 10.2', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round' }))
     }
 
-    function BootOverlay ({ settings, strings }) {
+    function BootOverlay ({ settings, strings, sources }) {
       const rootRef = useRef(null)
       const videoRef = useRef(null)
       const progressRef = useRef(null)
@@ -433,8 +491,11 @@ window.__ModuleLoader__.load({
             'aria-hidden': true,
             tabIndex: -1,
           },
-          h('source', { key: 'webm', src: `${base}boot.webm`, type: 'video/webm' }),
-          h('source', { key: 'mp4', src: `${base}boot.mp4`, type: 'video/mp4' }))),
+          (sources || []).map((source) => h('source', {
+            key: source.key || source.src,
+            src: source.src,
+            type: source.type,
+          })))),
         h('div', { className: 'dsh-ov-vignette', key: 'vignette' }),
         h('div', { className: 'dsh-ov-grain', key: 'grain' })),
       h('div', { className: 'dsh-ov-bar dsh-ov-bar--top', key: 'bar-top' }),
@@ -469,22 +530,41 @@ window.__ModuleLoader__.load({
       return bound ? h(BootOverlay, bound) : null
     }
 
+    let mounted = false
+
     return {
       inject: ['slots'],
       apply (ctx) {
-        const settings = readSettings()
-        // No Host half means the media route and the curtain do not exist, so
-        // there is nothing to play and no reason to cover the app.
-        if (!settings || !settings.enabled) return
-        if (hasBooted(settings)) return
+        const mount = (settings, sources) => {
+          if (mounted) return
+          // Nothing playable, or nothing that wants to play: stay out of the way.
+          if (!settings || !settings.enabled || hasBooted(settings)) return
+          mounted = true
+          const language = pickLanguage(ctx)
+          bound = { settings, strings: STRINGS[language] || STRINGS.en, sources }
+          ctx.slots.inject('shell.overlay', () => ctx.slots.register({
+            name: 'shell.overlay',
+            id: 'dsh-openvideo',
+            order: 1000,
+          }, BootBridge))
+        }
 
-        const language = pickLanguage(ctx)
-        bound = { settings, strings: STRINGS[language] || STRINGS.en }
-        ctx.slots.inject('shell.overlay', () => ctx.slots.register({
-          name: 'shell.overlay',
-          id: 'dsh-openvideo',
-          order: 1000,
-        }, BootBridge))
+        const start = (settings) => {
+          if (!settings) return
+          resolveSources(settings.mediaBase).then(
+            (sources) => mount(settings, sources),
+            () => mount(settings, directSources(settings.mediaBase)),
+          )
+        }
+
+        const injected = readSettings()
+        if (injected) {
+          start(injected)
+          return
+        }
+        // This carrier applied no index rows: ask the Host's settings route
+        // before concluding the Host half is absent.
+        fetchSettings().then(start, () => {})
       },
     }
   },
